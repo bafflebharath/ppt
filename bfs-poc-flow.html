@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BFS Modernization POC – AI-Assisted Migration</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0B0F1A;
+    --surface:  #111827;
+    --card:     #161D2E;
+    --border:   #1E2A40;
+    --accent:   #3B82F6;
+    --green:    #10B981;
+    --amber:    #F59E0B;
+    --purple:   #8B5CF6;
+    --text:     #E2E8F0;
+    --muted:    #64748B;
+    --label:    #94A3B8;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    width: 100%;
+    max-width: 1100px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header-left { flex: 1; min-width: 240px; }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: clamp(20px, 3vw, 28px);
+    font-weight: 800;
+    line-height: 1.2;
+    color: #fff;
+  }
+  h1 span { color: var(--accent); }
+  .subtitle { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding-top: 4px;
+  }
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .badge-blue   { background: #1E3A5F; border-color: #3B82F6; color: #93C5FD; }
+  .badge-purple { background: #2D1F5E; border-color: #8B5CF6; color: #C4B5FD; }
+  .badge-green  { background: #064E3B; border-color: #10B981; color: #6EE7B7; }
+
+  /* ── SECTION WRAPPER ── */
+  .page { width: 100%; max-width: 1100px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* ── ROW ── */
+  .row { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 200px; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+  .card.blue::before   { background: linear-gradient(90deg, #3B82F6, #60A5FA); }
+  .card.amber::before  { background: linear-gradient(90deg, #F59E0B, #FCD34D); }
+  .card.green::before  { background: linear-gradient(90deg, #10B981, #34D399); }
+  .card.purple::before { background: linear-gradient(90deg, #8B5CF6, #A78BFA); }
+
+  .card-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card-label .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+  .dot-blue   { background: var(--accent); }
+  .dot-amber  { background: var(--amber); }
+  .dot-green  { background: var(--green); }
+  .dot-purple { background: var(--purple); }
+
+  .card-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+
+  .stack-list { display: flex; flex-direction: column; gap: 7px; }
+  .stack-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--label);
+  }
+  .stack-item .icon {
+    width: 22px; height: 22px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; flex-shrink: 0;
+  }
+  .icon-legacy  { background: #2D1A0E; border: 1px solid #92400E; color: #FCD34D; }
+  .icon-new     { background: #1E3A5F; border: 1px solid #3B82F6; color: #93C5FD; }
+  .icon-db      { background: #1A1A3E; border: 1px solid #6366F1; color: #A5B4FC; }
+  .icon-ai      { background: #1E0F3A; border: 1px solid #8B5CF6; color: #C4B5FD; }
+
+  /* ── ARROW CONNECTOR ── */
+  .arrow-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 4px 0;
+    position: relative;
+  }
+  .arrow-line {
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+  .arrow-node {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--label);
+    white-space: nowrap;
+  }
+  .arrow-node .chevron { color: var(--accent); font-size: 14px; }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .flow-wrap::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--purple), var(--green));
+    border-radius: 12px 12px 0 0;
+  }
+
+  .flow-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--label);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .flow-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 100px;
+    flex-shrink: 0;
+  }
+  .flow-box {
+    width: 96px;
+    min-height: 70px;
+    border-radius: 10px;
+    border: 1.5px solid;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 6px;
+    text-align: center;
+    cursor: default;
+    transition: transform 0.15s;
+  }
+  .flow-box:hover { transform: translateY(-2px); }
+  .flow-box .ficon { font-size: 18px; }
+  .flow-box .fname { font-size: 10px; font-weight: 700; color: #fff; line-height: 1.2; }
+  .flow-box .fsub  { font-size: 9px; color: var(--muted); margin-top: 1px; }
+  .flow-tag        { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+
+  .fb-blue   { background: #0F2340; border-color: #3B82F6; }
+  .fb-amber  { background: #1A1200; border-color: #F59E0B; }
+  .fb-green  { background: #021C14; border-color: #10B981; }
+  .fb-purple { background: #170C35; border-color: #8B5CF6; }
+  .fb-slate  { background: #0F172A; border-color: #475569; }
+
+  .tag-legacy { background: #2D1A0E; color: #FCD34D; }
+  .tag-new    { background: #0C2340; color: #93C5FD; }
+  .tag-ai     { background: #200A40; color: #C4B5FD; }
+
+  .flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+  .flow-arrow .fa-line {
+    width: 28px; height: 2px;
+    background: linear-gradient(90deg, var(--border), var(--accent));
+    position: relative;
+  }
+  .flow-arrow .fa-line::after {
+    content: '▶';
+    position: absolute;
+    right: -6px;
+    top: -6px;
+    font-size: 9px;
+    color: var(--accent);
+  }
+  .flow-arrow .fa-label {
+    font-size: 8px;
+    color: var(--muted);
+    margin-top: 4px;
+    white-space: nowrap;
+  }
+
+  /* ── OUTCOME CARDS ── */
+  .outcomes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 600px) { .outcomes { grid-template-columns: 1fr; } }
+
+  .outcome-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .outcome-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .oc-blue   { color: var(--accent); }
+  .oc-green  { color: var(--green); }
+  .oc-purple { color: var(--purple); }
+  .outcome-text { font-size: 12px; color: var(--label); line-height: 1.5; }
+  .outcome-text strong { color: #fff; display: block; margin-bottom: 2px; font-size: 13px; }
+
+  /* ── AI PILL ROW ── */
+  .ai-strip {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    background: #0D0820;
+    border: 1px solid #2D1F5E;
+    border-radius: 10px;
+    padding: 14px 18px;
+  }
+  .ai-strip-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--purple);
+    margin-right: 4px;
+    white-space: nowrap;
+  }
+  .ai-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #1E0F3A;
+    border: 1px solid #3B1F6E;
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #C4B5FD;
+    white-space: nowrap;
+  }
+  .ai-desc {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+    font-style: italic;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    margin-top: 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--muted);
+    width: 100%;
+    max-width: 1100px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .footer-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #021C14;
+    border: 1px solid #10B981;
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #34D399;
+  }
+  .pulse {
+    width: 6px; height: 6px; border-radius: 50%; background: #10B981;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(1.4); }
+  }
+
+  .divider { width: 100%; max-width: 1100px; height: 1px; background: var(--border); margin: 4px 0; }
+  .section-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="eyebrow">⚡ BFS Domain — AI-Powered Modernization POC</div>
+    <h1>Legacy → Modern<br><span>Zero Rewrite. Real Results.</span></h1>
+    <div class="subtitle">Existing Java/JSP/PLSQL stack exposed as REST APIs · Consumed by standalone Angular UI</div>
+  </div>
+  <div class="badges">
+    <div class="badge badge-blue">🤖 GitHub Copilot</div>
+    <div class="badge badge-purple">🧠 Claude AI</div>
+    <div class="badge badge-green">✅ POC Complete</div>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- AI TOOLS STRIP -->
+  <div class="ai-strip">
+    <span class="ai-strip-label">🛠 AI Stack Used</span>
+    <div class="ai-pill">🤖 GitHub Copilot — Servlet & API code generation</div>
+    <div class="ai-pill">🧠 Claude — Architecture decisions & review</div>
+    <div class="ai-pill">⚡ Agentic mode — Boilerplate elimination</div>
+    <span class="ai-desc">100% of new code authored with AI assistance</span>
+  </div>
+
+  <!-- ROW 1 — Before vs After -->
+  <div class="row">
+    <div class="card amber">
+      <div class="card-label"><span class="dot dot-amber"></span>Before — Legacy Stack</div>
+      <div class="card-title">Monolithic BFS Application</div>
+      <div class="stack-list">
+        <div class="stack-item"><span class="icon icon-legacy">☕</span> Java (Legacy Business Logic)</div>
+        <div class="stack-item"><span class="icon icon-legacy">📄</span> JSP Pages (Server-rendered UI)</div>
+        <div class="stack-item"><span class="icon icon-db">🗄</span> PL/SQL · Oracle DB</div>
+        <div class="stack-item"><span class="icon icon-legacy">🔗</span> Tightly coupled: UI + Logic + DB</div>
+        <div class="stack-item"><span class="icon icon-legacy">⚠️</span> No API layer — no separation</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:center;flex:0 0 auto;padding:0 8px;">
+      <div style="text-align:center;">
+        <div style="font-size:28px;color:var(--accent);">→</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:4px;font-weight:600;">POC<br>BRIDGE</div>
+      </div>
+    </div>
+
+    <div class="card green">
+      <div class="card-label"><span class="dot dot-green"></span>After — POC Outcome</div>
+      <div class="card-title">API-First + Decoupled Angular UI</div>
+      <div class="stack-list">
+        <div class="stack-item"><span class="icon icon-legacy">☕</span> Java (Untouched Business Logic ✅)</div>
+        <div class="stack-item"><span class="icon icon-new">🔌</span> Web Servlet → REST API layer (New)</div>
+        <div class="stack-item"><span class="icon icon-db">🗄</span> PL/SQL · Oracle DB (Untouched ✅)</div>
+        <div class="stack-item"><span class="icon icon-new">🅰</span> Angular Standalone App (New)</div>
+        <div class="stack-item"><span class="icon icon-new">🔐</span> Login + User List — Live & Working</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLOW DIAGRAM -->
+  <div class="flow-wrap">
+    <div class="flow-title">
+      <span>🔄</span> End-to-End Request Flow — POC Architecture
+    </div>
+    <div class="flow" id="flow">
+
+      <!-- NODE 1 -->
+      <div class="flow-node">
+        <div class="flow-box fb-blue">
+          <span class="ficon">🅰</span>
+          <span class="fname">Angular<br>App</span>
+          <span class="fsub">Standalone</span>
+        </div>
+        <span class="flow-tag tag-new">NEW</span>
+      </div>
+
+      <div class="flow-arrow">
+        <div class="fa-line"></div>
+        <div class="fa-label">HTTP Request</div>
+      </div>
+
+      <!-- NODE 2 -->
+      <div class="flow-node">
+        <div class="flow-box fb-blue">
+          <span class="ficon">🔐</span>
+          <span class="fname">Login / Session</span>
+          <span class="fsub">Auth via API</span>
+        </div>
+        <span class="flow-tag tag-new">NEW</span>
+      </div>
+
+      <div class="flow-arrow">
+        <div class="fa-line"></div>
+        <div class="fa-label">Session Token</div>
+      </div>
+
+      <!-- NODE 3 -->
+      <div class="flow-node">
+        <div class="flow-box fb-purple">
+          <span class="ficon">🔌</span>
+          <span class="fname">Web Servlet</span>
+          <span class="fsub">REST API Layer</span>
+        </div>
+        <span class="flow-tag tag-ai">AI-BUILT</span>
+      </div>
+
+      <div class="flow-arrow">
+        <div class="fa-line"></div>
+        <div class="fa-label">Calls existing</div>
+      </div>
+
+      <!-- NODE 4 -->
+      <div class="flow-node">
+        <div class="flow-box fb-amber">
+          <span class="ficon">☕</span>
+          <span class="fname">Java Business<br>Logic</span>
+          <span class="fsub">Untouched</span>
+        </div>
+        <span class="flow-tag tag-legacy">EXISTING</span>
+      </div>
+
+      <div class="flow-arrow">
+        <div class="fa-line"></div>
+        <div class="fa-label">DB Call</div>
+      </div>
+
+      <!-- NODE 5 -->
+      <div class="flow-node">
+        <div class="flow-box fb-slate">
+          <span class="ficon">🗄</span>
+          <span class="fname">Oracle DB<br>PL/SQL</span>
+          <span class="fsub">Untouched</span>
+        </div>
+        <span class="flow-tag tag-legacy">EXISTING</span>
+      </div>
+
+      <div class="flow-arrow" style="transform: scaleX(-1);">
+        <div class="fa-line"></div>
+      </div>
+
+      <!-- NODE 6 -->
+      <div class="flow-node">
+        <div class="flow-box fb-green">
+          <span class="ficon">📋</span>
+          <span class="fname">User List<br>Page</span>
+          <span class="fsub">Angular UI</span>
+        </div>
+        <span class="flow-tag tag-new">LIVE ✅</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- OUTCOMES -->
+  <div class="section-eyebrow">📊 KEY POC OUTCOMES</div>
+  <div class="outcomes">
+    <div class="outcome-card">
+      <div class="outcome-num oc-green">01</div>
+      <div class="outcome-text">
+        <strong>Zero Core Rewrite</strong>
+        Existing Java logic & PL/SQL DB completely untouched. Only a thin Servlet API layer added on top.
+      </div>
+    </div>
+    <div class="outcome-card">
+      <div class="outcome-num oc-blue">02</div>
+      <div class="outcome-text">
+        <strong>Login + UserList — Working</strong>
+        Session management via API validated. Angular consumes live data from the BFS backend seamlessly.
+      </div>
+    </div>
+    <div class="outcome-card">
+      <div class="outcome-num oc-purple">03</div>
+      <div class="outcome-text">
+        <strong>AI-Accelerated Delivery</strong>
+        GitHub Copilot + Claude authored and reviewed 100% of new servlet & Angular code — no manual boilerplate.
+      </div>
+    </div>
+  </div>
+
+  <!-- NEXT STEPS ROW -->
+  <div class="card blue">
+    <div class="card-label"><span class="dot dot-blue"></span>Recommended Path Forward</div>
+    <div class="card-title">POC → Phased Modernization Roadmap</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">
+      <div style="flex:1;min-width:160px;background:#0A1929;border:1px solid #1E3A5F;border-radius:8px;padding:12px;">
+        <div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:6px;">PHASE 1 — Done ✅</div>
+        <div style="font-size:11px;color:var(--label);line-height:1.6;">Login module · Servlet API · Angular shell · Session handling · User List page</div>
+      </div>
+      <div style="flex:1;min-width:160px;background:#0A1929;border:1px solid #1E3A5F;border-radius:8px;padding:12px;">
+        <div style="font-size:10px;color:var(--amber);font-weight:700;margin-bottom:6px;">PHASE 2 — Next 🔜</div>
+        <div style="font-size:11px;color:var(--label);line-height:1.6;">Expand API surface module by module · Migrate JSP pages to Angular incrementally · AI-pair each sprint</div>
+      </div>
+      <div style="flex:1;min-width:160px;background:#0A1929;border:1px solid #1E3A5F;border-radius:8px;padding:12px;">
+        <div style="font-size:10px;color:var(--green);font-weight:700;margin-bottom:6px;">PHASE 3 — Target 🎯</div>
+        <div style="font-size:11px;color:var(--label);line-height:1.6;">Full Angular front-end · Spring Boot REST backend · JSP fully replaced · Zero disruption to DB</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="divider" style="margin-top:24px;"></div>
+<div class="footer">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="footer-dot"></div>
+    <span>BFS Domain — Modernization POC Presentation</span>
+  </div>
+  <div class="status-pill">
+    <div class="pulse"></div>
+    POC Validated · Ready for Phase 2
+  </div>
+</div>
+
+</body>
+</html>

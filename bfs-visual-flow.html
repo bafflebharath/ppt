@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BFS POC – Visual Flow</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #07090F;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Inter', sans-serif;
+    padding: 20px;
+  }
+
+  .canvas {
+    width: 960px;
+    background: #07090F;
+    position: relative;
+    padding: 40px 44px 36px;
+    border-radius: 20px;
+    overflow: hidden;
+  }
+
+  /* subtle grid background */
+  .canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(59,130,246,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* glow orbs */
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    opacity: 0.18;
+  }
+  .orb1 { width: 300px; height: 300px; background: #3B82F6; top: -80px; left: -60px; }
+  .orb2 { width: 200px; height: 200px; background: #8B5CF6; bottom: -40px; right: 80px; }
+  .orb3 { width: 160px; height: 160px; background: #10B981; bottom: 20px; left: 200px; opacity: 0.12; }
+
+  /* ── HEADER ── */
+  .hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    position: relative;
+    z-index: 1;
+  }
+  .hdr-left {}
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(59,130,246,0.12);
+    border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #60A5FA;
+    margin-bottom: 10px;
+  }
+  .tag .blink {
+    width: 6px; height: 6px; border-radius: 50%; background: #10B981;
+    animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  h1 {
+    font-size: 26px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+  h1 .hi { color: #3B82F6; }
+  .subline {
+    font-size: 11px;
+    color: #475569;
+    margin-top: 6px;
+    font-weight: 500;
+  }
+
+  .ai-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    align-items: flex-end;
+  }
+  .ai-b {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .ai-cop { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.4); color: #93C5FD; }
+  .ai-cla { background: rgba(139,92,246,0.1); border-color: rgba(139,92,246,0.4); color: #C4B5FD; }
+
+  /* ══════════════════════════════
+     MAIN FLOW — SVG canvas
+  ══════════════════════════════ */
+  .flow-svg-wrap {
+    position: relative;
+    z-index: 1;
+  }
+
+  svg.flow {
+    width: 100%;
+    overflow: visible;
+    display: block;
+  }
+
+  /* ── LAYER LABELS (left side) ── */
+  .layers {
+    position: absolute;
+    left: -36px;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 0;
+    pointer-events: none;
+  }
+
+  /* ── BOTTOM STRIP ── */
+  .bottom-strip {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
+  }
+  .bs-card {
+    flex: 1;
+    min-width: 140px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .bs-icon {
+    font-size: 20px;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .bs-text {}
+  .bs-title { font-size: 12px; font-weight: 700; color: #E2E8F0; margin-bottom: 2px; }
+  .bs-sub   { font-size: 10px; color: #475569; line-height: 1.4; }
+
+  .verdict {
+    background: rgba(16,185,129,0.08);
+    border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 10px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+  }
+  .verdict-icon { font-size: 22px; }
+  .verdict-text {}
+  .verdict-title { font-size: 13px; font-weight: 800; color: #34D399; }
+  .verdict-sub   { font-size: 10px; color: #10B981; opacity: 0.7; }
+
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div class="hdr-left">
+      <div class="tag"><div class="blink"></div> POC Completed · BFS Domain</div>
+      <h1>Legacy Java/JSP <span class="hi">→ API + Angular</span><br>Zero Core Rewrite.</h1>
+      <div class="subline">Existing code untouched · New Servlet API layer · Standalone Angular UI · Fully AI-built</div>
+    </div>
+    <div class="ai-badges">
+      <div class="ai-b ai-cop">🤖 GitHub Copilot</div>
+      <div class="ai-b ai-cla">🧠 Claude AI</div>
+    </div>
+  </div>
+
+  <!-- SVG FLOW DIAGRAM -->
+  <div class="flow-svg-wrap">
+  <svg class="flow" viewBox="0 0 872 310" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <!-- Arrow marker -->
+      <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#3B82F6" opacity="0.7"/>
+      </marker>
+      <marker id="arr-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#10B981" opacity="0.8"/>
+      </marker>
+      <marker id="arr-purple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#8B5CF6" opacity="0.8"/>
+      </marker>
+
+      <!-- Glows -->
+      <filter id="glow-blue" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="4" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="glow-green" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="5" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+
+      <!-- Gradients for cards -->
+      <linearGradient id="grad-blue" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1E3A5F"/>
+        <stop offset="100%" stop-color="#0F2040"/>
+      </linearGradient>
+      <linearGradient id="grad-amber" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2D1A0E"/>
+        <stop offset="100%" stop-color="#1A0F05"/>
+      </linearGradient>
+      <linearGradient id="grad-green" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#064E3B"/>
+        <stop offset="100%" stop-color="#021C14"/>
+      </linearGradient>
+      <linearGradient id="grad-purple" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#2D1F5E"/>
+        <stop offset="100%" stop-color="#170C35"/>
+      </linearGradient>
+      <linearGradient id="grad-slate" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#1E293B"/>
+        <stop offset="100%" stop-color="#0F172A"/>
+      </linearGradient>
+      <linearGradient id="line-blue" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.1"/>
+        <stop offset="50%" stop-color="#3B82F6" stop-opacity="0.8"/>
+        <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.1"/>
+      </linearGradient>
+      <linearGradient id="line-return" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#10B981" stop-opacity="0.1"/>
+        <stop offset="50%" stop-color="#10B981" stop-opacity="0.7"/>
+        <stop offset="100%" stop-color="#10B981" stop-opacity="0.1"/>
+      </linearGradient>
+    </defs>
+
+    <!-- ═══════════════════════════════════════
+         ROW BACKGROUNDS (layer bands)
+    ═══════════════════════════════════════ -->
+    <!-- UI Layer band -->
+    <rect x="0" y="2" width="872" height="118" rx="10" fill="rgba(59,130,246,0.03)" stroke="rgba(59,130,246,0.07)" stroke-width="1"/>
+    <!-- API Layer band -->
+    <rect x="0" y="130" width="872" height="90" rx="10" fill="rgba(139,92,246,0.03)" stroke="rgba(139,92,246,0.06)" stroke-width="1"/>
+    <!-- Backend Layer band -->
+    <rect x="0" y="230" width="872" height="76" rx="10" fill="rgba(245,158,11,0.03)" stroke="rgba(245,158,11,0.06)" stroke-width="1"/>
+
+    <!-- Layer labels -->
+    <text x="8" y="22" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#3B82F6" opacity="0.5" letter-spacing="1">UI LAYER</text>
+    <text x="8" y="150" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#8B5CF6" opacity="0.5" letter-spacing="1">API LAYER</text>
+    <text x="8" y="250" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#F59E0B" opacity="0.5" letter-spacing="1">BACKEND LAYER</text>
+
+    <!-- ═══════════════════════════
+         NODE 1 — Angular App
+    ═══════════════════════════ -->
+    <!-- Card -->
+    <rect x="44" y="30" width="120" height="82" rx="10" fill="url(#grad-blue)" stroke="#3B82F6" stroke-width="1.5" filter="url(#glow-blue)"/>
+    <!-- Top accent bar -->
+    <rect x="44" y="30" width="120" height="3" rx="2" fill="#3B82F6"/>
+    <!-- Icon circle -->
+    <circle cx="104" cy="60" r="16" fill="rgba(59,130,246,0.15)" stroke="rgba(59,130,246,0.3)" stroke-width="1"/>
+    <text x="104" y="65" font-size="14" text-anchor="middle" font-family="Arial">🅰</text>
+    <!-- Label -->
+    <text x="104" y="88" font-family="Inter" font-size="10" font-weight="700" fill="#93C5FD" text-anchor="middle">Angular App</text>
+    <text x="104" y="101" font-family="Inter" font-size="8.5" fill="#475569" text-anchor="middle">Standalone</text>
+    <!-- NEW badge -->
+    <rect x="68" y="106" width="72" height="14" rx="4" fill="rgba(16,185,129,0.15)" stroke="rgba(16,185,129,0.4)" stroke-width="1"/>
+    <text x="104" y="116.5" font-family="JetBrains Mono" font-size="7.5" font-weight="700" fill="#34D399" text-anchor="middle">✦ NEW</text>
+
+    <!-- ═══════════════════════════
+         NODE 2 — Login / Auth
+    ═══════════════════════════ -->
+    <rect x="216" y="30" width="120" height="82" rx="10" fill="url(#grad-blue)" stroke="#3B82F6" stroke-width="1.5"/>
+    <rect x="216" y="30" width="120" height="3" rx="2" fill="#60A5FA"/>
+    <circle cx="276" cy="60" r="16" fill="rgba(59,130,246,0.15)" stroke="rgba(59,130,246,0.3)" stroke-width="1"/>
+    <text x="276" y="65" font-size="14" text-anchor="middle" font-family="Arial">🔐</text>
+    <text x="276" y="88" font-family="Inter" font-size="10" font-weight="700" fill="#93C5FD" text-anchor="middle">Login Page</text>
+    <text x="276" y="101" font-family="Inter" font-size="8.5" fill="#475569" text-anchor="middle">Session + Auth</text>
+    <rect x="240" y="106" width="72" height="14" rx="4" fill="rgba(16,185,129,0.15)" stroke="rgba(16,185,129,0.4)" stroke-width="1"/>
+    <text x="276" y="116.5" font-family="JetBrains Mono" font-size="7.5" font-weight="700" fill="#34D399" text-anchor="middle">✅ DONE</text>
+
+    <!-- ═══════════════════════════
+         NODE 3 — User List
+    ═══════════════════════════ -->
+    <rect x="388" y="30" width="120" height="82" rx="10" fill="url(#grad-blue)" stroke="#3B82F6" stroke-width="1.5"/>
+    <rect x="388" y="30" width="120" height="3" rx="2" fill="#60A5FA"/>
+    <circle cx="448" cy="60" r="16" fill="rgba(59,130,246,0.15)" stroke="rgba(59,130,246,0.3)" stroke-width="1"/>
+    <text x="448" y="65" font-size="14" text-anchor="middle" font-family="Arial">👥</text>
+    <text x="448" y="88" font-family="Inter" font-size="10" font-weight="700" fill="#93C5FD" text-anchor="middle">User List Page</text>
+    <text x="448" y="101" font-family="Inter" font-size="8.5" fill="#475569" text-anchor="middle">Live Data from API</text>
+    <rect x="412" y="106" width="72" height="14" rx="4" fill="rgba(16,185,129,0.15)" stroke="rgba(16,185,129,0.4)" stroke-width="1"/>
+    <text x="448" y="116.5" font-family="JetBrains Mono" font-size="7.5" font-weight="700" fill="#34D399" text-anchor="middle">✅ DONE</text>
+
+    <!-- ═══════════════════════════
+         NODE 4 — Web Servlet (API)
+    ═══════════════════════════ -->
+    <rect x="560" y="143" width="130" height="68" rx="10" fill="url(#grad-purple)" stroke="#8B5CF6" stroke-width="1.5" filter="url(#glow-blue)"/>
+    <rect x="560" y="143" width="130" height="3" rx="2" fill="#8B5CF6"/>
+    <circle cx="625" cy="165" r="14" fill="rgba(139,92,246,0.2)" stroke="rgba(139,92,246,0.35)" stroke-width="1"/>
+    <text x="625" y="170" font-size="13" text-anchor="middle" font-family="Arial">🔌</text>
+    <text x="625" y="187" font-family="Inter" font-size="10" font-weight="700" fill="#C4B5FD" text-anchor="middle">Web Servlet</text>
+    <text x="625" y="199" font-family="Inter" font-size="8.5" fill="#475569" text-anchor="middle">REST API Endpoint</text>
+    <rect x="578" y="205" width="94" height="13" rx="4" fill="rgba(139,92,246,0.15)" stroke="rgba(139,92,246,0.4)" stroke-width="1"/>
+    <text x="625" y="215" font-family="JetBrains Mono" font-size="7.5" font-weight="700" fill="#C4B5FD" text-anchor="middle">🤖 AI-BUILT</text>
+
+    <!-- ═══════════════════════════
+         NODE 5 — Java Business Logic
+    ═══════════════════════════ -->
+    <rect x="44" y="244" width="140" height="60" rx="10" fill="url(#grad-amber)" stroke="#F59E0B" stroke-width="1.5"/>
+    <rect x="44" y="244" width="140" height="3" rx="2" fill="#F59E0B"/>
+    <circle cx="114" cy="264" r="13" fill="rgba(245,158,11,0.15)" stroke="rgba(245,158,11,0.3)" stroke-width="1"/>
+    <text x="114" y="269" font-size="12" text-anchor="middle" font-family="Arial">☕</text>
+    <text x="114" y="285" font-family="Inter" font-size="10" font-weight="700" fill="#FCD34D" text-anchor="middle">Java Business Logic</text>
+    <text x="114" y="297" font-family="Inter" font-size="8.5" fill="#92400E" text-anchor="middle">Untouched ✅ Existing</text>
+
+    <!-- ═══════════════════════════
+         NODE 6 — DB / PLSQL
+    ═══════════════════════════ -->
+    <rect x="220" y="244" width="130" height="60" rx="10" fill="url(#grad-slate)" stroke="#475569" stroke-width="1.5"/>
+    <rect x="220" y="244" width="130" height="3" rx="2" fill="#475569"/>
+    <circle cx="285" cy="264" r="13" fill="rgba(71,85,105,0.3)" stroke="rgba(71,85,105,0.5)" stroke-width="1"/>
+    <text x="285" y="269" font-size="12" text-anchor="middle" font-family="Arial">🗄</text>
+    <text x="285" y="285" font-family="Inter" font-size="10" font-weight="700" fill="#94A3B8" text-anchor="middle">Oracle DB · PL/SQL</text>
+    <text x="285" y="297" font-family="Inter" font-size="8.5" fill="#334155" text-anchor="middle">Untouched ✅ Existing</text>
+
+    <!-- ═══════════════════════════
+         CONNECTING ARROWS — Request path
+    ═══════════════════════════ -->
+
+    <!-- Angular → Login (horizontal) -->
+    <line x1="164" y1="71" x2="216" y2="71" stroke="url(#line-blue)" stroke-width="1.5" marker-end="url(#arr)"/>
+    <!-- Login → UserList (horizontal) -->
+    <line x1="336" y1="71" x2="388" y2="71" stroke="url(#line-blue)" stroke-width="1.5" marker-end="url(#arr)"/>
+
+    <!-- Login → Servlet (down-right curve) -->
+    <path d="M 336 71 C 420 71, 490 177, 560 177" stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#arr-purple)" opacity="0.6"/>
+    <!-- UserList → Servlet (down-right) -->
+    <path d="M 508 71 C 560 71, 560 177, 560 177" stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#arr-purple)" opacity="0.6"/>
+
+    <!-- Servlet → Java (down-left) -->
+    <path d="M 560 177 C 480 177, 300 270, 184 274" stroke="#F59E0B" stroke-width="1.5" fill="none" marker-end="url(#arr)" opacity="0.7"/>
+    <!-- Java → DB (horizontal) -->
+    <line x1="184" y1="274" x2="220" y2="274" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)" opacity="0.6"/>
+
+    <!-- DB → Servlet (return, curved dotted green) -->
+    <path d="M 350 274 C 500 274, 620 240, 625 221" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4,3" fill="none" marker-end="url(#arr-green)" opacity="0.5"/>
+
+    <!-- Servlet → Angular/Pages (return, top curve) -->
+    <path d="M 560 160 C 520 120, 460 50, 388 60" stroke="#10B981" stroke-width="1.5" stroke-dasharray="4,3" fill="none" marker-end="url(#arr-green)" opacity="0.5"/>
+
+    <!-- Arrow labels -->
+    <rect x="175" y="58" width="60" height="13" rx="4" fill="#07090F"/>
+    <text x="205" y="68" font-family="JetBrains Mono" font-size="7.5" fill="#3B82F6" text-anchor="middle">HTTP call</text>
+
+    <rect x="345" y="58" width="60" height="13" rx="4" fill="#07090F"/>
+    <text x="375" y="68" font-family="JetBrains Mono" font-size="7.5" fill="#3B82F6" text-anchor="middle">HTTP call</text>
+
+    <rect x="420" y="122" width="68" height="13" rx="4" fill="#07090F"/>
+    <text x="454" y="132" font-family="JetBrains Mono" font-size="7.5" fill="#8B5CF6" text-anchor="middle">API Request</text>
+
+    <rect x="356" y="238" width="78" height="13" rx="4" fill="#07090F"/>
+    <text x="395" y="248" font-family="JetBrains Mono" font-size="7.5" fill="#F59E0B" text-anchor="middle">Calls Java logic</text>
+
+    <rect x="484" y="262" width="70" height="13" rx="4" fill="#07090F"/>
+    <text x="519" y="272" font-family="JetBrains Mono" font-size="7.5" fill="#10B981" text-anchor="middle">JSON response</text>
+
+    <!-- ═══════════════════════════
+         LEGEND / STATUS CHIPS (right side)
+    ═══════════════════════════ -->
+    <rect x="728" y="35" width="136" height="240" rx="12" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+    <text x="796" y="57" font-family="Inter" font-size="8" font-weight="700" fill="#475569" text-anchor="middle" letter-spacing="1">LEGEND</text>
+
+    <!-- Existing -->
+    <rect x="742" y="66" width="108" height="26" rx="6" fill="rgba(245,158,11,0.08)" stroke="rgba(245,158,11,0.25)" stroke-width="1"/>
+    <text x="756" y="83" font-size="11" font-family="Arial">⬜</text>
+    <text x="773" y="80" font-family="Inter" font-size="9" font-weight="600" fill="#FCD34D">Existing</text>
+    <text x="773" y="89" font-family="Inter" font-size="8" fill="#475569">Untouched code</text>
+
+    <!-- New -->
+    <rect x="742" y="100" width="108" height="26" rx="6" fill="rgba(59,130,246,0.08)" stroke="rgba(59,130,246,0.25)" stroke-width="1"/>
+    <text x="756" y="117" font-size="11" font-family="Arial">🔵</text>
+    <text x="773" y="114" font-family="Inter" font-size="9" font-weight="600" fill="#93C5FD">New</text>
+    <text x="773" y="123" font-family="Inter" font-size="8" fill="#475569">AI-built layer</text>
+
+    <!-- Completed -->
+    <rect x="742" y="134" width="108" height="26" rx="6" fill="rgba(16,185,129,0.08)" stroke="rgba(16,185,129,0.25)" stroke-width="1"/>
+    <text x="756" y="151" font-size="11" font-family="Arial">✅</text>
+    <text x="773" y="148" font-family="Inter" font-size="9" font-weight="600" fill="#34D399">Completed</text>
+    <text x="773" y="157" font-family="Inter" font-size="8" fill="#475569">POC validated</text>
+
+    <!-- Divider -->
+    <line x1="742" y1="172" x2="850" y2="172" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+    <!-- Stats -->
+    <text x="796" y="190" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#3B82F6" text-anchor="middle">2</text>
+    <text x="796" y="202" font-family="Inter" font-size="8" fill="#475569" text-anchor="middle">Modules Live</text>
+
+    <text x="796" y="222" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#10B981" text-anchor="middle">0</text>
+    <text x="796" y="234" font-family="Inter" font-size="8" fill="#475569" text-anchor="middle">Core Changes</text>
+
+    <text x="796" y="254" font-family="JetBrains Mono" font-size="18" font-weight="700" fill="#8B5CF6" text-anchor="middle">AI</text>
+    <text x="796" y="266" font-family="Inter" font-size="8" fill="#475569" text-anchor="middle">100% Code Assist</text>
+
+  </svg>
+  </div>
+
+  <!-- BOTTOM STRIP -->
+  <div class="bottom-strip">
+    <div class="bs-card">
+      <div class="bs-icon">🧱</div>
+      <div class="bs-text">
+        <div class="bs-title">No Core Rewrite</div>
+        <div class="bs-sub">Java logic & PL/SQL DB completely untouched. Only a thin Servlet wrapper added.</div>
+      </div>
+    </div>
+    <div class="bs-card">
+      <div class="bs-icon">⚡</div>
+      <div class="bs-text">
+        <div class="bs-title">Rapid Delivery</div>
+        <div class="bs-sub">Login + User List live. Session management validated via REST API.</div>
+      </div>
+    </div>
+    <div class="bs-card">
+      <div class="bs-icon">🛤</div>
+      <div class="bs-text">
+        <div class="bs-title">Phased Path Forward</div>
+        <div class="bs-sub">Expand module-by-module. JSP replaced page by page — zero big-bang risk.</div>
+      </div>
+    </div>
+    <div class="verdict">
+      <div class="verdict-icon">🎯</div>
+      <div class="verdict-text">
+        <div class="verdict-title">POC Validated</div>
+        <div class="verdict-sub">Ready for Phase 2 approval</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
