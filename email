@@ -1,31 +1,20 @@
-sub
+Update: Discussion with Lead (Satheesh) – 17 Jun 2026
 
-BFS Modernization POC – Completed | AI-Assisted | Zero Core Rewrite
+Had a discussion with Satheesh regarding the direction of our current POC (Servlet API + standalone Angular, built on top of existing BFS/RAM legacy code).
 
-content 
+New requirement surfaced: Leadership is looking at a dedicated Angular MFE for Stopwatch transaction management, with Spring Boot as the backend — separate from the legacy RAM application. This page/module is not yet finalized. Long-term intent is that once this MFE is stable, the Stopwatch transaction module could be removed from the RAM (BFS legacy) application. For now, both would run in parallel — no decision yet on full cutover.
 
-Hi [Name],
+This creates a dependency between:
+1. Our existing POC approach (Servlet wrapper over legacy Java/PLSQL + Angular consuming APIs)
+2. The new ask (Angular MFE + Spring Boot backend for Stopwatch transaction management)
 
-I'm pleased to share that we have successfully completed the POC for BFS domain modernization.
+We have not finalized how these two efforts align — i.e., whether the new MFE will eventually replace the relevant module in our POC scope, run independently, or be integrated into the same Angular shell.
 
-Instead of a full rewrite to Spring Boot + Angular, we validated a lower-risk, phased approach:
+Satheesh is taking this to leadership (John) for alignment and will share direction today/shortly.
 
-• Added a thin Web Servlet layer on top of the existing Java code to expose REST APIs
-• Built a standalone Angular application that consumes these APIs
-• Login module and User List page are fully live and validated
-• Existing Java business logic and PL/SQL database — completely untouched
+Next steps:
+- Awaiting confirmation from Satheesh/John on direction
+- Will update this ticket once approach is finalized
+- Flow chart covering all 3 possible paths (continue POC as-is / build new MFE separately / converge both) shared separately for reference
 
-What makes this significant: 100% of the new code was authored using AI tools — GitHub Copilot (Agentic mode) and Claude — with no manual boilerplate writing.
-
-Key outcomes:
-✅ 2 modules live (Login + User List)
-✅ Session management via REST API — validated
-✅ Zero changes to core business logic or DB layer
-✅ Clear phased roadmap — expand module by module, zero big-bang risk
-
-I've attached a visual architecture flow diagram for a quick walkthrough.
-
-Happy to take this forward to Phase 2 with your approval. Available for a quick sync if needed.
-
-Regards,
-[Your Name]
+Will update this thread once we get clarity.
